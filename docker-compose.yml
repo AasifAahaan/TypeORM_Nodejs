@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  nodejs:
+    image: typeorm-nodejs  # Custom Node.js app image
+    container_name: typeorm-nodejs
+    build:
+      context: .  # Build using Dockerfile in the current directory
+      dockerfile: Dockerfile  # Dockerfile for building the image
+    volumes:
+      - .:/app  # Mount the current directory for live updates (during development)
+    ports:
+      - "3000:3000"  # Exposing port 3000 for your Node.js application
+    environment:
+      - DB_HOST=host.docker.internal  # Connect to the local PostgreSQL instance
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=aasif@123  # Replace with your actual password
+      - DB_NAME=TypeORM
+    command: npm run dev  # Run in development mode (adjust if necessary)
+
+volumes:
+  postgres_data:
+    driver: local  # For persisting PostgreSQL data if needed in Docker (not used here)
