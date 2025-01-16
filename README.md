@@ -23,5 +23,5 @@ Make sure you have the following installed on your machine:
 First, clone this repository to your local machine:
 
 ```bash
-git clone https://github.com/your-repository-name
-cd your-repository-name
+git https://github.com/AasifAahaan/TypeORM_Nodejs.git
+cd TypeORM_Nodejs
