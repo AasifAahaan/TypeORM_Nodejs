@@ -1,6 +1,10 @@
 import { Request, Response } from 'express';
 import { User } from '../entity/User';
 import { AppDataSource } from '../config/data-source';
+import * as kafka from 'kafka-node';
+
+const client = new kafka.KafkaClient({ kafkaHost: 'localhost:9092' });
+const producer = new kafka.Producer(client);
 
 export class UserController {
   static async createUser(req: Request, res: Response): Promise<void> {
@@ -34,6 +38,29 @@ export class UserController {
     try {
       const userRepository = AppDataSource.getRepository(User);
       const users = await userRepository.find();
+
+      const message = JSON.stringify({
+        type: 'FETCH_USERS',
+        payload: {
+          count: users.length,
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      console.log({ message })
+
+      await new Promise<void>((resolve, reject) => {
+        producer.send([{ topic: 'user-activity', messages: message }], (err, data) => {
+          if (err) {
+            console.error('Error sending Kafka message:', err);
+            reject(err); 
+          } else {
+            console.log('Kafka message sent successfully:', data);
+            resolve(); 
+          }
+        });
+      });
+
       res.status(200).json(users);
     } catch (error) {
       console.error('Error fetching users:', error);
