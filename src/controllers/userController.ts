@@ -1,10 +1,24 @@
 import { Request, Response } from 'express';
 import { User } from '../entity/User';
 import { AppDataSource } from '../config/data-source';
-import * as kafka from 'kafka-node';
+// import * as kafka from 'kafka-node';
 
-const client = new kafka.KafkaClient({ kafkaHost: 'localhost:9092' });
-const producer = new kafka.Producer(client);
+// const client = new kafka.KafkaClient({ kafkaHost: 'localhost:9092' });
+// const producer = new kafka.Producer(client);
+
+const { Kafka } = require('kafkajs');
+
+const kafka = new Kafka({
+  clientId: 'typeorm',
+  brokers: ['localhost:9092'],
+});
+
+const producer = kafka.producer();
+
+async function connectProducer() {
+  await producer.connect();
+}
+connectProducer();
 
 export class UserController {
   static async createUser(req: Request, res: Response): Promise<void> {
@@ -39,28 +53,32 @@ export class UserController {
       const userRepository = AppDataSource.getRepository(User);
       const users = await userRepository.find();
 
+      if (!users || users.length === 0) {
+        res.status(404).json({ message: 'No users found' });
+        return;
+      }
+
       const message = JSON.stringify({
         type: 'FETCH_USERS',
         payload: {
+          users,
           count: users.length,
           timestamp: new Date().toISOString(),
         },
       });
 
-      console.log({ message })
+      console.log("MESSAGE : ", { message });
 
-      await new Promise<void>((resolve, reject) => {
-        producer.send([{ topic: 'user-activity', messages: message }], (err, data) => {
-          if (err) {
-            console.error('Error sending Kafka message:', err);
-            reject(err); 
-          } else {
-            console.log('Kafka message sent successfully:', data);
-            resolve(); 
-          }
-        });
+      const kafkaUser = await producer.send({
+        topic: 'user-activity',
+        messages: [
+          {
+            value: message,
+          },
+        ],
       });
 
+      // console.log('Kafka message sent successfully', { kafkaUser });
       res.status(200).json(users);
     } catch (error) {
       console.error('Error fetching users:', error);

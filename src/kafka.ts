@@ -1,41 +1,31 @@
-import * as kafka from 'kafka-node';
+import { Kafka } from 'kafkajs';
 
-const client = new kafka.KafkaClient({ kafkaHost: 'localhost:9092' });
+const kafka = new Kafka({
+    clientId: 'typeorm',
+    brokers: ['localhost:9092'],
+});
 
-const producer = new kafka.Producer(client);
+const admin = kafka.admin();
 
-const consumer = new kafka.Consumer(
-    client,
-    [{ topic: 'user-activity', partition: 0 }],
-    { autoCommit: true }
-);
-
-let allUserActivities: any[] = [];
-
-consumer.on('message', (message) => {
+async function deleteTopic(topicName: string) {
     try {
-        const messageValue = message.value instanceof Buffer ? message.value.toString() : message.value;
-        console.log({ messageValue })
-        //@ts-ignore
-        const parsedMessage = JSON.parse(messageValue);
-        console.log('Received Kafka message:', parsedMessage);
+        await admin.connect();
+        console.log(`Connected to Kafka broker...`);
 
-        allUserActivities.push(parsedMessage);
+        await admin.deleteTopics({
+            topics: [topicName],
+            timeout: 3000,
+        });
+
+        console.log(`Topic "${topicName}" deleted successfully.`);
     } catch (error) {
-        console.error('Error processing Kafka message:', error);
+        console.error(`Failed to delete topic "${topicName}":`, error);
+    } finally {
+        await admin.disconnect();
+        console.log(`Disconnected from Kafka broker.`);
     }
-});
+}
 
-consumer.on('error', (err) => {
-    console.error('Kafka Consumer Error:', err);
-});
+export default deleteTopic;
 
-producer.on('error', (err: Error) => {
-    console.error('Kafka Producer Error:', err);
-});
 
-setInterval(() => {
-    console.log('All User Activities:', allUserActivities);
-}, 2000);
-
-export { producer, consumer };

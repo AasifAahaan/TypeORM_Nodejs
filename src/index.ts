@@ -3,17 +3,60 @@ import express, { Request, Response } from 'express';
 import bodyParser from 'body-parser';
 import { AppDataSource } from './config/data-source';
 import userRoutes from './routes/userRoutes';
-import * as kafka from 'kafka-node';
+import { KAFKA_TOPICS } from './config/topics.config';
+import { KafkaMessage } from 'kafkajs';
+import { MessagePayload } from './types/kafkaTypes';
+import { kafkaConsumer } from './helpers/kafka.helper';
+const { Kafka } = require('kafkajs');
 
-const client = new kafka.KafkaClient({ kafkaHost: 'localhost:9092' });
+const kafka = new Kafka({
+    clientId: 'typeorm',
+    brokers: ['localhost:9092'],
+});
+// const consumer = kafka.consumer({ groupId: 'user-group' });
 
-const producer = new kafka.Producer(client);
+// async function runConsumer() {
+//     try {
+//         await consumer.connect();
+//         await consumer.subscribe({ topic: 'user-activity', fromBeginning: true });
+//         // console.log('Consumer connected and subscribed to topic user-activity');
+//         await consumer.run({
+//             eachMessage: async ({ topic, partition, message }: { topic: string; partition: number; message: KafkaMessage }) => {
+//                 try {
+//                     //@ts-ignore
+//                     const messageValue: MessagePayload = JSON.parse(message.value.toString());
+//                     console.log({ messageValue })
+//                     const { users, count, timestamp } = messageValue.payload;
 
-const consumer = new kafka.Consumer(
-    client,
-    [{ topic: 'user-activity', partition: 0 }],
-    { autoCommit: true }
-);
+//                     console.log(`\n==================== User Fetch Report ====================`);
+//                     console.log(`| Total Users:     ${count}                                    `);
+//                     console.log(`| Timestamp:       ${timestamp}                                `);
+//                     console.log(`===========================================================\n`);
+
+//                     console.log(`User Details:`);
+//                     console.log(`-----------------------------------------------------------`);
+
+//                     users.forEach((user, index) => {
+//                         console.log(`| User ${index + 1}:`);
+//                         console.log(`|   First Name:    ${user.firstName}`);
+//                         console.log(`|   Last Name:     ${user.lastName}`);
+//                         console.log(`|   Age:           ${user.age}`);
+//                         console.log(`-----------------------------------------------------------`);
+//                     });
+
+//                     console.log(`===========================================================\n`);
+
+//                 } catch (error) {
+//                     console.error('Error parsing message:', error);
+//                 }
+//             },
+//         });
+//     } catch (error) {
+//         console.error('Error connecting to Kafka:', error);
+//     }
+// }
+
+// runConsumer().catch(console.error);
 
 const app = express();
 const port = 3000;
@@ -34,32 +77,20 @@ app.get("/api/get", (req: Request, res: Response) => {
     res.send("Aasif Alvi 1234567890");
 })
 
-let allUserActivities: any[] = [];
-consumer.on('message', (message) => {
+const consumerRunner = async () => {
     try {
-        const messageValue = message.value instanceof Buffer ? message.value.toString() : message.value;
-        console.log({ messageValue })
-        //@ts-ignore
-        const parsedMessage = JSON.parse(messageValue);
-        console.log('Received Kafka message:', { parsedMessage });
-        allUserActivities.push(parsedMessage);
-    } catch (error) {
-        console.error('Error processing Kafka message:', error);
+        for (const topic of KAFKA_TOPICS) {
+            console.log("TOPIC : ", { topic })
+            await kafkaConsumer(topic);
+        }
     }
-});
+    catch (error) {
+        console.log(error)
+    }
+}
 
-consumer.on('error', (err) => {
-    console.error('Kafka Consumer Error:', err);
-});
-
-producer.on('error', (err: Error) => {
-    console.error('Kafka Producer Error:', err);
-});
-
-// setInterval(() => {
-//     console.log('All User Activities:', allUserActivities);
-// }, 2000);
 
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
+    consumerRunner();
 });
